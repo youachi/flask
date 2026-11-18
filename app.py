@@ -1,12 +1,4 @@
-"""
-Entradas Mestalla - versión Flask de la tienda WordPress/WooCommerce.
-
-Sigue la estructura vista en el seminario de Flask:
-  - app.py      -> controlador (rutas con @app.route)
-  - db.py       -> modelo (base de datos SQLite)
-  - templates/  -> vistas (plantillas Jinja2)
-  - static/     -> hojas de estilo e imágenes
-"""
+import os
 from functools import wraps
 
 from flask import Flask
@@ -22,12 +14,11 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from db import get_connection, init_db
 
-# Creamos una instancia de Flask
+
 app = Flask(__name__)
 
-# Clave necesaria para usar sesiones (carrito y login). En producción debe
-# cambiarse por un valor secreto y aleatorio.
-app.secret_key = 'cambia-esta-clave-en-produccion'
+
+app.secret_key = os.environ.get('SECRET_KEY', 'cambia-esta-clave-en-produccion')
 
 SITIO = {
     'nombre': 'VALENCIA C.F.',
@@ -36,8 +27,7 @@ SITIO = {
     'whatsapp_mensaje': 'Hola, tengo una consulta sobre entradas para Mestalla.',
 }
 
-# Métodos de envío configurados en WooCommerce (zonas "España peninsular" y
-# "Baleares y Canarias").
+
 ENVIOS = {
     'correos': {'nombre': 'Correos – Paq Estándar (3-5 días)', 'peninsula': 4.95, 'islas': 9.95},
     'seur': {'nombre': 'SEUR 24h', 'peninsula': 7.95, 'islas': 14.95},
@@ -47,8 +37,7 @@ ENVIOS = {
     'email': {'nombre': 'Entrada electrónica por email', 'peninsula': 0, 'islas': 0},
 }
 
-# Métodos de pago configurados en WooCommerce (BACS renombrado a Bizum y COD
-# renombrado a pago en taquilla).
+
 PAGOS = {
     'bizum': {
         'nombre': 'Bizum',
@@ -78,16 +67,10 @@ PARTIDOS_CONTACTO = ['Jornada 12 – Liga', 'Jornada 14 – Liga', 'Jornada 16 �
 ROLES_GESTION = ('administrador', 'gestor')
 
 
-# ---------------------------------------------------------------------------
-# Utilidades
-# ---------------------------------------------------------------------------
 def get_db():
-    """Abre una conexión por petición y la guarda en g."""
     if 'db' not in g:
         g.db = get_connection()
     return g.db
-
-
 @app.teardown_appcontext
 def cerrar_db(error):
     db = g.pop('db', None)
@@ -97,7 +80,6 @@ def cerrar_db(error):
 
 @app.template_filter('euros')
 def euros(valor):
-    """Formatea un número como precio: 1234.5 -> 1.234,50 €"""
     texto = f'{valor:,.2f}'.replace(',', 'X').replace('.', ',').replace('X', '.')
     return f'{texto} €'
 
@@ -119,7 +101,6 @@ def login_requerido(vista):
 
 
 def gestion_requerida(vista):
-    """Solo administradores y gestores de la tienda (shop_manager en WooCommerce)."""
     @wraps(vista)
     def envoltura(*args, **kwargs):
         usuario = usuario_actual()
@@ -128,9 +109,7 @@ def gestion_requerida(vista):
         return vista(*args, **kwargs)
     return envoltura
 
-
 def consulta_productos(where='', params=()):
-    """Productos con su categoría, rango de precios y valoración media."""
     sql = f"""
         SELECT p.*, c.nombre AS categoria, c.slug AS categoria_slug,
                COALESCE(p.precio, (SELECT MIN(precio) FROM variaciones v WHERE v.producto_id = p.id)) AS precio_min,
@@ -153,9 +132,6 @@ def obtener_resenas(limite=None):
     return get_db().execute(sql).fetchall()
 
 
-# ---------------------------------------------------------------------------
-# Carrito (se guarda en la sesión: {"producto_id" o "producto_id-variacion_id": cantidad})
-# ---------------------------------------------------------------------------
 def obtener_carrito():
     db = get_db()
     lineas, subtotal = [], 0
@@ -181,7 +157,6 @@ def obtener_carrito():
 
 @app.context_processor
 def contexto_global():
-    """Variables disponibles en todas las plantillas."""
     return {
         'sitio': SITIO,
         'usuario': usuario_actual(),
@@ -190,14 +165,10 @@ def contexto_global():
     }
 
 
-# ---------------------------------------------------------------------------
-# Páginas
-# ---------------------------------------------------------------------------
 @app.route('/')
 def index():
     destacados = consulta_productos('WHERE p.destacado = 1')[:4]
     return render_template('index.html', productos=destacados, resenas=obtener_resenas(10))
-
 
 @app.route('/entradas/')
 def entradas():
@@ -255,7 +226,7 @@ def nueva_resena(slug):
         abort(404)
     valoracion = request.form.get('valoracion', type=int)
     comentario = request.form.get('comentario', '').strip()
-    # En WooCommerce la valoración es obligatoria (woocommerce_review_rating_required = yes)
+
     if not valoracion or not 1 <= valoracion <= 5 or not comentario:
         flash('Selecciona una valoración y escribe tu opinión.', 'error')
     else:
@@ -281,7 +252,7 @@ def opiniones():
 @app.route('/contacto/', methods=['GET', 'POST'])
 def contacto():
     if request.method == 'POST':
-        # Obtenemos los parámetros del formulario (equivalente a Contact Form 7)
+
         nombre = request.form.get('nombre', '').strip()
         email = request.form.get('email', '').strip()
         partido = request.form.get('partido', '')
@@ -308,14 +279,10 @@ def politica_privacidad():
     return render_template('politica_privacidad.html')
 
 
-# ---------------------------------------------------------------------------
-# Carrito y compra
-# ---------------------------------------------------------------------------
 @app.route('/carrito/')
 def carrito():
     lineas, subtotal = obtener_carrito()
     return render_template('carrito.html', lineas=lineas, subtotal=subtotal)
-
 
 @app.route('/carrito/anadir', methods=['POST'])
 def carrito_anadir():
@@ -373,14 +340,12 @@ def carrito_eliminar(clave):
 
 
 def calcular_envio(metodo, provincia, subtotal):
-    """Devuelve el coste del envío o None si el método no está disponible."""
     envio = ENVIOS.get(metodo)
     if envio is None:
         return None
     if subtotal < envio.get('minimo', 0):
         return None
     return envio['islas'] if provincia in PROVINCIAS_ISLAS else envio['peninsula']
-
 
 @app.route('/finalizar-compra/', methods=['GET', 'POST'])
 def finalizar_compra():
@@ -431,7 +396,7 @@ def finalizar_compra():
                            'VALUES (?, ?, ?, ?, ?, ?)',
                            (pedido_id, linea['producto']['id'], var_id, linea['nombre'],
                             linea['cantidad'], linea['precio']))
-                # Reducimos el inventario igual que hacía WooCommerce
+
                 if var_id and linea['stock'] is not None:
                     db.execute('UPDATE variaciones SET stock = stock - ? WHERE id = ?', (linea['cantidad'], var_id))
                 elif linea['stock'] is not None:
@@ -465,9 +430,6 @@ def pedido_recibido(pedido_id):
     return render_template('pedido.html', pedido=pedido, lineas=lineas, pago=pago)
 
 
-# ---------------------------------------------------------------------------
-# Mi cuenta (acceso, registro y pedidos)
-# ---------------------------------------------------------------------------
 @app.route('/mi-cuenta/')
 def mi_cuenta():
     usuario = usuario_actual()
@@ -520,9 +482,6 @@ def salir():
     return redirect(url_for('index'))
 
 
-# ---------------------------------------------------------------------------
-# Panel de gestión (administrador y gestor de la tienda)
-# ---------------------------------------------------------------------------
 @app.route('/gestion/')
 @gestion_requerida
 def gestion():
@@ -566,14 +525,10 @@ def gestion_producto(producto_id):
     return redirect(url_for('gestion') + '#productos')
 
 
-# ---------------------------------------------------------------------------
-# Gestión de errores
-# ---------------------------------------------------------------------------
 @app.errorhandler(404)
 def pagina_no_encontrada(error):
     return render_template('error.html', codigo=404,
                            mensaje='La página que buscas no existe.'), 404
-
 
 @app.errorhandler(403)
 def acceso_prohibido(error):
@@ -581,10 +536,9 @@ def acceso_prohibido(error):
                            mensaje='No tienes permiso para acceder a esta página.'), 403
 
 
-# Creamos la base de datos (si no existe) al arrancar la aplicación
 with app.app_context():
     init_db()
 
-# Programa principal
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=False)

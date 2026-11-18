@@ -1,18 +1,9 @@
-"""
-Modelo de datos (la "M" del patrón MVC).
-
-Aquí se crea la base de datos SQLite y se cargan los datos que tenía la tienda
-WordPress/WooCommerce original (sacados del backup de la base de datos):
-categorías, productos, variaciones por zona, usuarios y la reseña existente.
-"""
 import os
 import sqlite3
 from werkzeug.security import generate_password_hash
 
-DATABASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mestalla.db')
+DATABASE = '/tmp/mestalla.db' if os.environ.get('VERCEL') else os.path.join(os.path.dirname(os.path.abspath(__file__)), 'mestalla.db')
 
-# Contraseña de demostración para los usuarios migrados. WordPress guarda las
-# contraseñas cifradas con su propio algoritmo y no se pueden recuperar.
 PASSWORD_DEMO = 'mestalla2026'
 
 ESQUEMA = """
@@ -22,7 +13,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
     email         TEXT UNIQUE NOT NULL,
     nombre        TEXT NOT NULL,
     password_hash TEXT NOT NULL,
-    rol           TEXT NOT NULL DEFAULT 'cliente'   -- administrador | gestor | cliente
+    rol           TEXT NOT NULL DEFAULT 'cliente'
 );
 
 CREATE TABLE IF NOT EXISTS categorias (
@@ -38,12 +29,12 @@ CREATE TABLE IF NOT EXISTS productos (
     slug              TEXT UNIQUE NOT NULL,
     descripcion       TEXT,
     descripcion_corta TEXT,
-    precio            REAL,                 -- NULL en productos variables
-    stock             INTEGER,              -- NULL = sin gestión de inventario
+    precio            REAL,
+    stock             INTEGER,
     imagen            TEXT,
     categoria_id      INTEGER REFERENCES categorias(id),
     destacado         INTEGER DEFAULT 0,
-    tipo              TEXT DEFAULT 'simple' -- simple | variable
+    tipo              TEXT DEFAULT 'simple'
 );
 
 CREATE TABLE IF NOT EXISTS variaciones (
@@ -103,11 +94,9 @@ CREATE TABLE IF NOT EXISTS mensajes (
 );
 """
 
-# ---------------------------------------------------------------------------
-# Datos migrados desde WordPress (tablas wp_terms, wp_posts, wp_postmeta...)
-# ---------------------------------------------------------------------------
+
 CATEGORIAS = [
-    # (nombre, slug, descripción)
+
     ('Liga', 'liga', 'Entradas para los partidos de liga en Mestalla.'),
     ('Copa del Rey', 'copa-del-rey', 'Entradas para las eliminatorias de Copa del Rey.'),
     ('Abonos', 'abonos', 'Abonos de temporada y medios abonos.'),
@@ -116,7 +105,7 @@ CATEGORIAS = [
 ]
 
 PRODUCTOS = [
-    # (nombre, slug, descripción, descripción corta, precio, stock, imagen, categoría, destacado, tipo)
+
     ('Entrada Tribuna Central – Jornada 12', 'entrada-tribuna-central-jornada-12',
      'Asiento numerado en Tribuna Central con la mejor vista del campo.',
      'Asiento numerado en Tribuna Central con la mejor vista del campo.',
@@ -156,7 +145,7 @@ PRODUCTOS = [
      None, None, 'mestalla-3.jpg', 'liga', 1, 'variable'),
 ]
 
-# Variaciones del producto variable (atributo pa_zona)
+
 VARIACIONES = [
     ('entrada-jornada-16-elige-tu-zona', 'Tribuna', 80, 100),
     ('entrada-jornada-16-elige-tu-zona', 'Preferencia', 65, 100),
@@ -165,29 +154,25 @@ VARIACIONES = [
 ]
 
 USUARIOS = [
-    # (usuario, email, nombre, rol)
+
     ('Youssef', 'yououaapa@alu.edu.gva.es', 'Youssef', 'administrador'),
     ('Youssef1', 'youssef1@entradasmestalla.com', 'Youssef Administrador', 'administrador'),
     ('Youssef2', 'youssef2@entradasmestalla.com', 'Youssef Gestor', 'gestor'),
     ('Youssef3', 'youssef3@entradasmestalla.com', 'Youssef Cliente', 'cliente'),
 ]
-
 RESENAS = [
-    # (slug producto, usuario, valoración, comentario, fecha)
+
     ('entrada-anfiteatro-jornada-14', 'Youssef3', 5, 'Servicio y gestión impecables', '2026-10-30 00:26:21'),
 ]
 
 
 def get_connection():
-    """Devuelve una conexión a la base de datos con acceso a columnas por nombre."""
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA foreign_keys = ON')
     return conn
 
-
 def init_db():
-    """Crea las tablas y carga los datos iniciales si la base de datos está vacía."""
     conn = get_connection()
     conn.executescript(ESQUEMA)
 

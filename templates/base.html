@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-    <!-- Cabecera (template part "header" del tema) -->
+
     <header class="cabecera">
         <div class="cabecera__marca">
             <a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='img/escudo-valencia.png') }}"
@@ -19,7 +19,6 @@
         <input type="checkbox" id="menu-toggle" class="menu-toggle">
         <label for="menu-toggle" class="menu-boton" aria-label="Abrir menú">&#9776;</label>
 
-        <!-- Menú principal -->
         <nav class="menu">
             {% set ep = request.endpoint %}
             <a href="{{ url_for('index') }}" class="{{ 'activo' if ep == 'index' }}">Inicio</a>
@@ -62,7 +61,6 @@
         {% block contenido %}{% endblock %}
     </main>
 
-    <!-- Pie de página (template part "footer" del tema) -->
     <footer class="pie">
         <div class="pie__columnas">
             <div>
@@ -85,7 +83,6 @@
         <p class="pie__copy">© 2026 Valencia CF</p>
     </footer>
 
-    <!-- Botón de WhatsApp (sustituye al plugin Joinchat) -->
     <a class="whatsapp" target="_blank" rel="noopener"
        href="https://wa.me/{{ sitio.whatsapp }}?text={{ sitio.whatsapp_mensaje | urlencode }}"
        title="¿Te ayudamos?">

@@ -7,7 +7,7 @@
 <div class="columnas columnas--2">
     <div>
         <h3>Escríbenos</h3>
-        <!-- Formulario equivalente al de Contact Form 7 -->
+
         <form method="POST" action="{{ url_for('contacto') }}" class="formulario">
             <label for="nombre">Nombre (obligatorio)</label>
             <input type="text" id="nombre" name="nombre" required autocomplete="name" value="{{ datos.get('nombre', '') }}">
